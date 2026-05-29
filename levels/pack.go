@@ -5,12 +5,13 @@ import (
 
 	"goarrows/game"
 )
+
 // Pack is an ordered set of levels from procedural generation
 // (when proc is non-nil) or from test-built board/name slices.
 type Pack struct {
-	Names   []string
-	Boards  []game.Board
-	proc    *proceduralSource
+	Names  []string
+	Boards []game.Board
+	proc   *proceduralSource
 }
 
 // NewProceduralPack returns a pack with unbounded levels: size (i+3)×(i+3)

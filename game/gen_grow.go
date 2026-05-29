@@ -1,103 +1,12 @@
 package game
 
 import (
-	"fmt"
 	"math/rand/v2"
 )
 
-// targetArrowCountForSide returns how many arrow polylines to use for an N×N layer:
-// N < 6 → N; N < 10 → N*N/6; otherwise → N*N/10 (integer division).
-func targetArrowCountForSide(n int) int {
-	switch {
-	case n < 6:
-		return n
-	case n < 10:
-		return n * n / 6
-	default:
-		return n * n / 10
-	}
-}
-
-// clampArrowCount caps the target polyline count to [1, wh/2] so seeds fit on the grid.
-func clampArrowCount(targetArrows, wh int) int {
-	maxArrows := wh / 2
-	if maxArrows < 1 {
-		maxArrows = 1
-	}
-	if targetArrows > maxArrows {
-		targetArrows = maxArrows
-	}
-	if targetArrows < 1 {
-		targetArrows = 1
-	}
-	return targetArrows
-}
-
-// generateFullBoardGrow seeds arrow heads with a one-cell body (count from targetArrowCountForSide),
-// extends tails at random until stuck, then accepts only if ValidatePartialBoard,
-// growPlayfulEnough (at most half the heads have a clear shot at start), and
-// VerifyGreedyFirstClearsBoard succeed.
-func generateFullBoardGrow(w, h int, rng *rand.Rand) (Board, error) {
-	if w <= 0 || h <= 0 {
-		return Board{}, fmt.Errorf("gen: invalid size %d×%d", w, h)
-	}
-	wh := w * h
-	if wh < 2 {
-		return Board{}, fmt.Errorf("gen: need at least 2 cells (got %d×%d)", w, h)
-	}
-
-	n := min(w, h)
-	nHeads := clampArrowCount(targetArrowCountForSide(n), wh)
-	maxTries := 8000 + 100*wh
-	if maxTries > 60000 {
-		maxTries = 60000
-	}
-	for attempt := 0; attempt < maxTries; attempt++ {
-		r := rand.New(rand.NewPCG(rng.Uint64(), rng.Uint64()))
-		paths, ok := tryGrowPartition(w, h, nHeads, r)
-		if !ok {
-			continue
-		}
-		b, err := boardFromPaths(paths, w, h)
-		if err != nil {
-			continue
-		}
-		if err := ValidatePartialBoard(b); err != nil {
-			continue
-		}
-		if !growPlayfulEnough(b) {
-			continue
-		}
-		if !VerifyGreedyFirstClearsBoard(b) {
-			continue
-		}
-		return b, nil
-	}
-	return Board{}, fmt.Errorf("gen: could not build grow board for %d×%d", w, h)
-}
-
-// growPlayfulEnough rejects boards that are too easy at the start: at most half the heads
-// may have a clear firing ray (RayEscapes). For a single head the check is skipped so
-// solvable tiny cases are still possible.
-func growPlayfulEnough(b Board) bool {
-	total := 0
-	fireable := 0
-	for y := 0; y < b.H; y++ {
-		for x := 0; x < b.W; x++ {
-			if !b.At(x, y).IsHead() {
-				continue
-			}
-			total++
-			if RayEscapes(b, x, y) {
-				fireable++
-			}
-		}
-	}
-	if total <= 1 {
-		return true
-	}
-	return 2*fireable <= total
-}
+// growStraightChance10 is P(straight)/10 when both straight and turn tail steps exist
+// during grow algorithm extensions in tryGrowPartition.
+const growStraightChance10 = 9
 
 // tryGrowPartition builds initial seed paths then repeatedly extends tails until no move remains.
 func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
@@ -215,19 +124,65 @@ func rayHitsPreviousHead(hx, hy int, fire Direction, heads []Point, w, h int) bo
 	return false
 }
 
-// boardFromPaths rasterizes polylines into a Board via paintPath (each path must be disjoint).
-func boardFromPaths(paths [][]Point, w, h int) (Board, error) {
-	grid := make([]rune, w*h)
-	for _, path := range paths {
-		if err := paintPath(grid, w, path); err != nil {
-			return Board{}, err
+// neighborPoints returns empty orthogonal steps from tail toward extending the polyline:
+// in bounds, not backtracking to prev, not in occupied, and not on the current path.
+func neighborPoints(tail, prev Point, w, h int, occupied []bool, pathSet map[Point]struct{}) []Point {
+	var out []Point
+	for _, d := range []Direction{North, East, South, West} {
+		dx, dy := Delta(d)
+		nx, ny := tail.X+dx, tail.Y+dy
+		if nx < 0 || nx >= w || ny < 0 || ny >= h {
+			continue
+		}
+		np := Point{nx, ny}
+		if np == prev {
+			continue
+		}
+		if occupied[ny*w+nx] {
+			continue
+		}
+		if _, ok := pathSet[np]; ok {
+			continue
+		}
+		out = append(out, np)
+	}
+	return out
+}
+
+// pickBiasedTailStep chooses the next cell when extending a polyline tail. When both a straight
+// continuation and a turn are legal, straightChance10 out of 10 rolls pick straight.
+func pickBiasedTailStep(prev, tail Point, cands []Point, rng *rand.Rand, straightChance10 int) Point {
+	if len(cands) == 1 {
+		return cands[0]
+	}
+	incoming := directionFromTo(prev.X, prev.Y, tail.X, tail.Y)
+	var straight, turn []Point
+	for _, c := range cands {
+		out := directionFromTo(tail.X, tail.Y, c.X, c.Y)
+		if out == incoming {
+			straight = append(straight, c)
+		} else {
+			turn = append(turn, c)
 		}
 	}
-	b := NewBoard(w, h)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			b.Set(x, y, Cell{R: grid[y*w+x]})
+	if len(turn) > 0 && len(straight) > 0 {
+		if rng.IntN(10) < straightChance10 {
+			return straight[rng.IntN(len(straight))]
+		}
+		return turn[rng.IntN(len(turn))]
+	}
+	return cands[rng.IntN(len(cands))]
+}
+
+// cellOnOpenRayFromHead reports whether (px, py) lies on the open ray from (hx, hy) in
+// direction fire: the first cell is (hx, hy)+Delta(fire), excluding the head cell itself.
+// Matches RayEscapes ray traversal.
+func cellOnOpenRayFromHead(hx, hy int, fire Direction, px, py, w, h int) bool {
+	dx, dy := Delta(fire)
+	for cx, cy := hx+dx, hy+dy; cx >= 0 && cx < w && cy >= 0 && cy < h; cx, cy = cx+dx, cy+dy {
+		if cx == px && cy == py {
+			return true
 		}
 	}
-	return b, nil
+	return false
 }

@@ -174,11 +174,11 @@ func TestHeadPositionForStep(t *testing.T) {
 // TestFireTravelCells_AllDirections checks open-ray cell lists for all four head directions.
 func TestFireTravelCells_AllDirections(t *testing.T) {
 	tests := []struct {
-		name string
-		w, h int
+		name   string
+		w, h   int
 		hx, hy int
-		rune rune
-		want []game.Point
+		rune   rune
+		want   []game.Point
 	}{
 		{"east", 6, 3, 2, 1, '>', []game.Point{{X: 3, Y: 1}, {X: 4, Y: 1}, {X: 5, Y: 1}}},
 		{"west", 6, 3, 3, 1, '<', []game.Point{{X: 2, Y: 1}, {X: 1, Y: 1}, {X: 0, Y: 1}}},

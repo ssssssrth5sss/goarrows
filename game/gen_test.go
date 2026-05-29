@@ -18,6 +18,19 @@ func countHeads(b Board) int {
 	return n
 }
 
+// countInitialRayEscapes counts heads whose firing ray reaches the board edge with no obstruction.
+func countInitialRayEscapes(b Board) int {
+	n := 0
+	for y := 0; y < b.H; y++ {
+		for x := 0; x < b.W; x++ {
+			if b.At(x, y).IsHead() && RayEscapes(b, x, y) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 // boardRunesEqual compares two boards’ dimensions and per-cell runes.
 func boardRunesEqual(a, b Board) bool {
 	if a.W != b.W || a.H != b.H || len(a.Data) != len(b.Data) {
@@ -34,11 +47,11 @@ func boardRunesEqual(a, b Board) bool {
 // TestCellOnOpenRayFromHead exercises cellOnOpenRayFromHead across directions and edge cases.
 func TestCellOnOpenRayFromHead(t *testing.T) {
 	tests := []struct {
-		name       string
-		hx, hy     int
-		fire       Direction
-		px, py     int
-		w, h       int
+		name      string
+		hx, hy    int
+		fire      Direction
+		px, py    int
+		w, h      int
 		wantOnRay bool
 	}{
 		{"first_cell_north", 2, 2, North, 2, 1, 5, 5, true},
