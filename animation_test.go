@@ -115,14 +115,14 @@ func TestBuildPointerFrames_BentPath(t *testing.T) {
 	})
 }
 
-// TestHeadPositionForStep verifies headPositionForStep on-ray and past-edge steps.
+// TestHeadPositionForStep verifies headPositionForStep on-board and past-edge steps.
 func TestHeadPositionForStep(t *testing.T) {
-	ray := []struct{ X, Y int }{{2, 1}, {3, 1}}
-	x, y := headPositionForStep(ray, 1, 0, 1)
+	ox, oy := 1, 1
+	x, y := headPositionForStep(ox, oy, 1, 0, 1)
 	if x != 2 || y != 1 {
 		t.Fatalf("step1 got (%d,%d) want (2,1)", x, y)
 	}
-	x, y = headPositionForStep(ray, 1, 0, 3)
+	x, y = headPositionForStep(ox, oy, 1, 0, 3)
 	if x != 4 || y != 1 {
 		t.Fatalf("step3 got (%d,%d) want (4,1)", x, y)
 	}
@@ -173,6 +173,66 @@ func TestTryStartFireAnimation_InitializesState(t *testing.T) {
 	if anim.fireX != 3 || anim.fireY != 1 {
 		t.Fatalf("fire origin got (%d,%d) want (3,1)", anim.fireX, anim.fireY)
 	}
+}
+
+// TestTryStartFireAnimation_HeadAtEdge guards the bug where a head already on the board
+// edge fired off-board without animation: the escape ray is empty, yet the body must still
+// slide off, so the animation must start instead of clearing the arrow instantly.
+func TestTryStartFireAnimation_HeadAtEdge(t *testing.T) {
+	b := game.NewBoard(4, 3)
+	b.Set(3, 1, game.Cell{R: '>'})
+	b.Set(2, 1, game.Cell{R: '─'})
+	b.Set(1, 1, game.Cell{R: '─'})
+	if cells := fireTravelCells(b, 3, 1); len(cells) != 0 {
+		t.Fatalf("expected empty travel ray for edge head, got %d cells", len(cells))
+	}
+	g := game.NewGame(b, 3, "t")
+	var anim animState
+	ok := tryStartFireAnimation(g, 3, 1, &anim, 10*time.Millisecond)
+	if !ok {
+		t.Fatal("animation should start even when the head is on the board edge")
+	}
+	if !anim.active {
+		t.Fatal("anim.active = false")
+	}
+	if len(anim.frames) == 0 {
+		t.Fatal("anim.frames empty: edge head was cleared without animation")
+	}
+}
+
+// TestBuildPointerFrames_EdgeNoRay checks frames when the head starts on the edge (empty ray):
+// the head steps off-board immediately while the body trails one cell per step.
+func TestBuildPointerFrames_EdgeNoRay(t *testing.T) {
+	b := game.NewBoard(4, 3)
+	b.Set(3, 1, game.Cell{R: '>'})
+	b.Set(2, 1, game.Cell{R: '─'})
+	b.Set(1, 1, game.Cell{R: '─'})
+
+	path, err := game.PathFromHead(b, 3, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ray := fireTravelCells(b, 3, 1)
+	if len(ray) != 0 {
+		t.Fatalf("expected empty ray, got %d", len(ray))
+	}
+	frames, ok := buildPointerFrames(b, path, ray, '>')
+	if !ok {
+		t.Fatal("buildPointerFrames returned !ok for edge head")
+	}
+	if len(frames) != 2 {
+		t.Fatalf("frame count got %d want 2", len(frames))
+	}
+	assertFrameCells(t, frames[0].Cells, []ui.OverlayCell{
+		{X: 4, Y: 1, R: '>'},
+		{X: 3, Y: 1, R: '─'},
+		{X: 2, Y: 1, R: '─'},
+	})
+	assertFrameCells(t, frames[1].Cells, []ui.OverlayCell{
+		{X: 5, Y: 1, R: '>'},
+		{X: 4, Y: 1, R: '─'},
+		{X: 3, Y: 1, R: '─'},
+	})
 }
 
 // assertFrameCells fails the test if overlay cell slices differ element-wise.

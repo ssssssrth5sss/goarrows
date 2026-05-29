@@ -448,10 +448,9 @@ func tryStartFireAnimation(g *game.Game, cx, cy int, anim *animState, stepDur ti
 	if err != nil || len(path) == 0 {
 		return false
 	}
+	// An edge head has no travel cells (cells is empty); the body must still
+	// slide off, so we do not bail here. buildPointerFrames handles an empty ray.
 	cells := fireTravelCells(g.Board, cx, cy)
-	if len(cells) == 0 {
-		return false
-	}
 	frames, ok := buildPointerFrames(g.Board, path, cells, c.R)
 	if !ok || len(frames) == 0 {
 		return false
@@ -468,7 +467,7 @@ func tryStartFireAnimation(g *game.Game, cx, cy int, anim *animState, stepDur ti
 
 // buildPointerFrames builds per-step overlays: head slides along ray then past the edge while the tail follows.
 func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune rune) ([]ui.FireAnimOverlay, bool) {
-	if len(path) == 0 || len(ray) == 0 {
+	if len(path) == 0 {
 		return nil, false
 	}
 	fireDir, ok := game.HeadFireDir(headRune)
@@ -477,6 +476,7 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 	}
 	dx, dy := game.Delta(fireDir)
 	bodyRune := straightBodyRune(fireDir)
+	ox, oy := path[0].X, path[0].Y
 	cur := make([]ui.OverlayCell, len(path))
 	for i, p := range path {
 		cur[i] = ui.OverlayCell{X: p.X, Y: p.Y, R: b.At(p.X, p.Y).R}
@@ -490,7 +490,7 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 			break
 		}
 		cur[0].R = bodyRune
-		hx, hy := headPositionForStep(ray, dx, dy, step)
+		hx, hy := headPositionForStep(ox, oy, dx, dy, step)
 		next := ui.OverlayCell{X: hx, Y: hy, R: headRune}
 		nxt := make([]ui.OverlayCell, 0, len(cur))
 		nxt = append(nxt, next)
@@ -508,15 +508,11 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 	return frames, len(frames) > 0
 }
 
-// headPositionForStep is the animated head cell after step steps (1-based): along ray then off-board.
-func headPositionForStep(ray []struct{ X, Y int }, dx, dy, step int) (int, int) {
-	if step <= len(ray) {
-		p := ray[step-1]
-		return p.X, p.Y
-	}
-	last := ray[len(ray)-1]
-	extra := step - len(ray)
-	return last.X + extra*dx, last.Y + extra*dy
+// headPositionForStep is the animated head cell after step steps (1-based) measured from
+// the head origin (ox, oy) along the fire direction. The escape ray is straight, so this
+// covers both on-board and off-board steps, including an edge head with no travel cells.
+func headPositionForStep(ox, oy, dx, dy, step int) (int, int) {
+	return ox + step*dx, oy + step*dy
 }
 
 // straightBodyRune is the wire rune left behind as the head moves (matches fire axis).
