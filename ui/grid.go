@@ -34,7 +34,7 @@ func DrawGrid(s tcell.Screen, ox, oy int, b game.Board, cursorX, cursorY int, ba
 	hidePath := fireAnimHidePath(fireAnim)
 	hideSet := pathCellSet(b.W, hidePath)
 	animCells := fireAnimCells(fireAnim)
-	animSet := overlayCellSet(b.W, animCells)
+	animSet := overlayCellSet(b.W, b.H, animCells)
 
 	for y := 0; y < b.H; y++ {
 		for x := 0; x < b.W; x++ {
@@ -103,10 +103,16 @@ func pathCellSet(w int, path []struct{ X, Y int }) map[int]struct{} {
 	return m
 }
 
-// overlayCellSet maps linear indices to overlay cells (last write wins per cell).
-func overlayCellSet(w int, cells []OverlayCell) map[int]OverlayCell {
+// overlayCellSet maps linear indices to in-bounds overlay cells (last write wins).
+// Off-board cells (head/body past an edge during fire animation) are skipped: their
+// y*w+x index would otherwise alias onto an in-bounds cell in a neighbor row and draw
+// a spurious horizontal bridge there.
+func overlayCellSet(w, h int, cells []OverlayCell) map[int]OverlayCell {
 	m := make(map[int]OverlayCell, len(cells))
 	for _, c := range cells {
+		if c.X < 0 || c.X >= w || c.Y < 0 || c.Y >= h {
+			continue
+		}
 		m[c.Y*w+c.X] = c
 	}
 	return m
