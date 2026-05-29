@@ -21,7 +21,7 @@ func main() {
 	flag.Parse()
 
 	seed := resolveProceduralSeed(seedFlag)
-	pack, err := loadPack(seed)
+	lv, err := loadLevels(seed)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -125,13 +125,13 @@ func main() {
 		anim.active = false
 	}
 	gotoLevel := func(delta int) {
-		idx = (idx + delta + pack.Len()) % pack.Len()
-		g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
+		idx = (idx + delta + lv.Count()) % lv.Count()
+		g = newGameWithGenOverlay(lv, idx, *startLives, &generatingN, redraw)
 		clearTransient()
 		clampCursor(g, &cx, &cy)
 	}
 	restart := func() {
-		resetLevel(pack, &g, idx, *startLives)
+		resetLevel(lv, &g, idx, *startLives)
 		clearTransient()
 		clampCursor(g, &cx, &cy)
 	}
@@ -154,7 +154,7 @@ func main() {
 		tryStartOrApplyFire(x, y)
 	}
 
-	g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
+	g = newGameWithGenOverlay(lv, idx, *startLives, &generatingN, redraw)
 	clampCursor(g, &cx, &cy)
 	redraw()
 	ticker := time.NewTicker(16 * time.Millisecond)

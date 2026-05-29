@@ -27,15 +27,16 @@ logic, never the reverse.
   `ParseLevelString`), validation (`ValidateBoard`, `ValidatePartialBoard`),
   firing (`TryFire`, `RayEscapes`, `PathFromHead`), procedural generation
   (`GenerateBoard`/`GenGrow`, `growPlayfulEnough`, `VerifyGreedyFirstClearsBoard`),
-  and the backtracking `VerifySolvable` (tests only).
-- `levels` — builds packs of levels. `NewProceduralPack(seed)` plus `Pack.LevelAt`
-  generate boards on demand and cache them in a memo, deterministic per seed.
+  the backtracking `VerifySolvable` (tests only), and on-demand level generation
+  (`NewLevels(seed)` plus `Levels.At`, which generate boards lazily and cache them
+  in a memo, deterministic per seed).
 - `ui` — renders a `game.Board` to a `tcell.Screen`. Maps logical cell `(x, y)` to
   screen column `2*x` (row `y`); `GridSize` is `(2*w-1, h)`. Draws HUD, help/modal/
-  generating overlays, and fire animation frames.
+  generating overlays, and both builds (`BuildFireFrames`) and draws fire animation
+  frames.
 - `main` — owns only the tcell setup, input loop, HUD layout, status/overlay state,
-  and fire animation timing. It must not contain game rules; route logic through
-  `game`.
+  and fire animation timing/stepping (it requests frames from `ui.BuildFireFrames`).
+  It must not contain game rules; route logic through `game`.
 
 ## File layout
 
@@ -47,16 +48,17 @@ growing a catch-all.
   `EffectivePorts`, `linked`, `directionFromTo`), `validate.go` (`ValidateBoard`,
   `ValidatePartialBoard`), `path.go` (`PathFromHead`), `level.go` (parsing),
   `gen.go` (generation policy and `GenerateBoard`), `gen_grow.go` (the grow
-  algorithm), `paint.go` (polyline rasterization), `solvable.go`
-  (`VerifyGreedyFirstClearsBoard`, `VerifySolvable`). `countInitialRayEscapes` is a
-  test-only helper in `gen_test.go`.
-- `levels`: `pack.go` (the `Pack` type), `procedural.go` (`proceduralSource`,
-  `levelRNG`).
+  algorithm), `paint.go` (polyline rasterization), `levels.go` (the on-demand
+  `Levels` generator: `NewLevels`, `At`, `Count`, `SideLen`, `Ready`, `levelRNG`),
+  `solvable.go` (`VerifyGreedyFirstClearsBoard`, `VerifySolvable`).
+  `countInitialRayEscapes` is a test-only helper in `gen_test.go`.
 - `ui`: `grid.go` (`DrawGrid`, `GridSize`), `overlay.go` (`DrawStr`, `FormatLives`,
-  help/modal/generating overlays).
+  help/modal/generating overlays), `animation.go` (fire-animation frame construction:
+  `BuildFireFrames` plus `buildPointerFrames`, `fireTravelCells`).
 - `main`: `main.go` (event/render loop), `flags.go` (CLI flags, `resolveProceduralSeed`),
-  `pack.go` (pack/game glue), `cursor.go`, `fire.go` (fire outcome to status/modal),
-  `animation.go` (fire-animation frames).
+  `levels.go` (level/game glue: `loadLevels`, `newGameForLevel`, `resetLevel`),
+  `cursor.go`, `fire.go` (fire outcome to status/modal), `animation.go`
+  (fire-animation timing/stepping: `animState`, `tryStartFireAnimation`).
 
 ## Conventions
 

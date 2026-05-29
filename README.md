@@ -83,30 +83,29 @@ How levels are generated:
   repeatedly firing the first available arrow. This guarantees every level is
   winnable.
 - With `-seed`, generation is deterministic, so the same seed always produces
-  the same levels. Levels are built when you reach them and cached for the run.
+  the same levels. The `game.Levels` generator builds each level when you reach
+  it and caches it for the run.
 
 Code layout:
 
 | Package | Role |
 |---------|------|
 | `main` | [tcell](https://github.com/gdamore/tcell) setup, the input loop, the on-screen info (level name, lives, remaining cells), status messages, and the help overlay. |
-| `game` | The core rules: the board model, parsing, validation, `PathFromHead`, `TryFire` / `RayEscapes`, and level generation (`GenerateBoard`, `ValidatePartialBoard`, `VerifyGreedyFirstClearsBoard`, plus `VerifySolvable` used in tests). |
-| `levels` | `NewProceduralPack(seed)` and `Pack.LevelAt` provide generated boards on demand. |
+| `game` | The core rules: the board model, parsing, validation, `PathFromHead`, `TryFire` / `RayEscapes`, level generation (`GenerateBoard`, `ValidatePartialBoard`, `VerifyGreedyFirstClearsBoard`, plus `VerifySolvable` used in tests), and the on-demand `Levels` generator (`NewLevels(seed)` and `Levels.At`). |
 | `ui` | `DrawGrid` draws the board, placing each cell at screen column `2*x` and joining horizontal wires with `─` so they read as one line; `GridSize` is `(2*w-1, h)`. |
 
 Where things live (one responsibility per file):
 
 - `main` (root): `main.go` (event/render loop), `flags.go` (CLI flags and
-  seed resolution), `pack.go` (pack/game glue), `cursor.go` (cursor movement),
+  seed resolution), `levels.go` (level/game glue), `cursor.go` (cursor movement),
   `fire.go` (fire outcome to status/modal), `animation.go` (fire-animation
-  frames).
+  timing/stepping).
 - `game`: `board.go` (the board model), `game.go` (game state plus `TryFire` /
   `RayEscapes`), `ports.go` (the connection model), `validate.go`, `path.go`,
   `level.go` (parsing), `gen.go` / `gen_grow.go` / `paint.go` (level
-  generation), `solvable.go`.
-- `levels`: `pack.go` (the `Pack` type), `procedural.go` (on-demand generation
-  and memo).
-- `ui`: `grid.go` (board drawing), `overlay.go` (HUD text and modals).
+  generation), `levels.go` (the on-demand `Levels` generator), `solvable.go`.
+- `ui`: `grid.go` (board drawing), `overlay.go` (HUD text and modals),
+  `animation.go` (builds fire-animation frames via `BuildFireFrames`).
 
 The game rules stay independent of the terminal: `game.TryFire` updates the
 board and lives, while `main` only handles drawing and input.

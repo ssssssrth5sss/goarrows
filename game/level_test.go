@@ -5,6 +5,36 @@ import (
 	"testing"
 )
 
+// TestParseInlineFixtures parses several inline ASCII art levels into boards.
+func TestParseInlineFixtures(t *testing.T) {
+	cases := []struct {
+		name  string
+		level string
+	}{
+		{name: "vertical", level: "▲\n│"},
+		{name: "horizontal", level: "──▶"},
+		{name: "two_tall", level: "▲▲\n││"},
+		{name: "elbow", level: "└▶"},
+	}
+	for _, tc := range cases {
+		b, err := ParseLevelString(tc.level)
+		if err != nil {
+			t.Fatalf("%s: parse failed: %v", tc.name, err)
+		}
+		if b.W == 0 || b.H == 0 {
+			t.Fatalf("%s: empty board parsed", tc.name)
+		}
+	}
+}
+
+// TestParseInlineFixtureError expects ParseLevelString to reject an invalid two-row fixture.
+func TestParseInlineFixtureError(t *testing.T) {
+	invalid := "▶\n.."
+	if _, err := ParseLevelString(invalid); err == nil {
+		t.Fatal("expected parse error for invalid fixture")
+	}
+}
+
 // TestValidateBoard_mismatchedNeighbor rejects a head wired to an incompatible neighbor.
 func TestValidateBoard_mismatchedNeighbor(t *testing.T) {
 	// ▲ with no body link (│ below has no north to ▲ if we use wrong glyph)
