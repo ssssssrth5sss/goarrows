@@ -105,20 +105,20 @@ func TestBuildPointerFrames_BentPath(t *testing.T) {
 		{X: 4, Y: 1, R: '>'},
 		{X: 3, Y: 1, R: '─'},
 		{X: 2, Y: 1, R: '┌'},
-		{X: 2, Y: 2, R: '│'},
+		{X: 2, Y: 2, R: '┘'},
 	})
 	assertFrameCells(t, frames[1].Cells, []ui.OverlayCell{
 		{X: 5, Y: 1, R: '>'},
 		{X: 4, Y: 1, R: '─'},
 		{X: 3, Y: 1, R: '─'},
-		{X: 2, Y: 1, R: '─'},
+		{X: 2, Y: 1, R: '┌'},
 	})
 }
 
-// TestBuildPointerFrames_TailStraightensPastBend reproduces the tail-render bug: as the
-// snake's tail recedes onto a former corner cell, the glyph must straighten to a stub
-// matching its single remaining neighbor instead of keeping the stale corner rune.
-func TestBuildPointerFrames_TailStraightensPastBend(t *testing.T) {
+// TestBuildPointerFrames_TailKeepsBendGlyph checks that as the snake's tail recedes onto a
+// former corner cell, the animation keeps the cell's original board glyph (the corner) rather
+// than straightening it; only the cell directly behind the head becomes a straight body rune.
+func TestBuildPointerFrames_TailKeepsBendGlyph(t *testing.T) {
 	b := game.NewBoard(7, 5)
 	b.Set(4, 2, game.Cell{R: '>'})
 	b.Set(3, 2, game.Cell{R: '─'})
@@ -139,7 +139,7 @@ func TestBuildPointerFrames_TailStraightensPastBend(t *testing.T) {
 		t.Fatalf("frame count got %d want >= 2", len(frames))
 	}
 
-	// Frame 0: the corner at (2,2) is still internal (joins east + south), so it stays ┌.
+	// Frame 0: the corner at (2,2) keeps its board glyph ┌.
 	assertFrameCells(t, frames[0].Cells, []ui.OverlayCell{
 		{X: 5, Y: 2, R: '>'},
 		{X: 4, Y: 2, R: '─'},
@@ -147,14 +147,14 @@ func TestBuildPointerFrames_TailStraightensPastBend(t *testing.T) {
 		{X: 2, Y: 2, R: '┌'},
 		{X: 2, Y: 3, R: '│'},
 	})
-	// Frame 1: the tail recedes onto (2,2); it now connects only east, so it must be a
-	// straight stub ─, not the stale corner ┌.
+	// Frame 1: the tail recedes onto (2,2); it retains its original corner glyph ┌ instead
+	// of straightening, since the animation only rewrites the cell behind the head.
 	assertFrameCells(t, frames[1].Cells, []ui.OverlayCell{
 		{X: 6, Y: 2, R: '>'},
 		{X: 5, Y: 2, R: '─'},
 		{X: 4, Y: 2, R: '─'},
 		{X: 3, Y: 2, R: '─'},
-		{X: 2, Y: 2, R: '─'},
+		{X: 2, Y: 2, R: '┌'},
 	})
 }
 

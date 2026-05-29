@@ -475,6 +475,7 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 		return nil, false
 	}
 	dx, dy := game.Delta(fireDir)
+	bodyRune := straightBodyRune(fireDir)
 	ox, oy := path[0].X, path[0].Y
 	cur := make([]ui.OverlayCell, len(path))
 	for i, p := range path {
@@ -488,6 +489,7 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 		if len(cur) == 0 {
 			break
 		}
+		cur[0].R = bodyRune
 		hx, hy := headPositionForStep(ox, oy, dx, dy, step)
 		next := ui.OverlayCell{X: hx, Y: hy, R: headRune}
 		nxt := make([]ui.OverlayCell, 0, len(cur))
@@ -498,7 +500,6 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 		cur = nxt
 		frameCells := make([]ui.OverlayCell, len(cur))
 		copy(frameCells, cur)
-		assignPolylineRunes(frameCells, headRune)
 		frames = append(frames, ui.FireAnimOverlay{
 			HidePath: path,
 			Cells:    frameCells,
@@ -507,32 +508,21 @@ func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune r
 	return frames, len(frames) > 0
 }
 
-// assignPolylineRunes derives each cell's glyph from its neighbors along the
-// polyline: the head keeps headRune, the tail becomes a straight stub toward its
-// single neighbor, and internal cells take the wire rune joining both neighbors.
-func assignPolylineRunes(cells []ui.OverlayCell, headRune rune) {
-	for i := range cells {
-		switch {
-		case i == 0:
-			cells[i].R = headRune
-		case i == len(cells)-1:
-			prev := cells[i-1]
-			mask := game.PortToward(cells[i].X, cells[i].Y, prev.X, prev.Y)
-			cells[i].R = game.WireRuneForPorts(mask)
-		default:
-			prev, nextC := cells[i-1], cells[i+1]
-			mask := game.PortToward(cells[i].X, cells[i].Y, prev.X, prev.Y) |
-				game.PortToward(cells[i].X, cells[i].Y, nextC.X, nextC.Y)
-			cells[i].R = game.WireRuneForPorts(mask)
-		}
-	}
-}
-
 // headPositionForStep is the animated head cell after step steps (1-based) measured from
 // the head origin (ox, oy) along the fire direction. The escape ray is straight, so this
 // covers both on-board and off-board steps, including an edge head with no travel cells.
 func headPositionForStep(ox, oy, dx, dy, step int) (int, int) {
 	return ox + step*dx, oy + step*dy
+}
+
+// straightBodyRune is the wire rune left behind as the head moves (matches fire axis).
+func straightBodyRune(d game.Direction) rune {
+	switch d {
+	case game.North, game.South:
+		return '│'
+	default:
+		return '─'
+	}
 }
 
 // fireTravelCells lists empty cells from the head cell along the open ray to the board edge (exclusive of head).
