@@ -17,27 +17,6 @@ func GenerateBoard(w, h int, rng *rand.Rand) (Board, error) {
 	return generateFullBoardGrow(w, h, rng)
 }
 
-// GenerateFullBoard is kept as a compatibility alias for tests/callers.
-func GenerateFullBoard(w, h int, rng *rand.Rand) (Board, error) {
-	return GenerateBoard(w, h, rng)
-}
-
-// minInt returns the smaller of a and b.
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// absInt returns the absolute value of x.
-func absInt(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
 // cellOnOpenRayFromHead reports whether (px, py) lies on the open ray from (hx, hy) in
 // direction fire: the first cell is (hx, hy)+Delta(fire), excluding the head cell itself.
 // Matches RayEscapes ray traversal.
@@ -51,21 +30,17 @@ func cellOnOpenRayFromHead(hx, hy int, fire Direction, px, py, w, h int) bool {
 	return false
 }
 
-type point struct {
-	x, y int
-}
-
 // neighborPoints returns empty orthogonal steps from tail toward extending the polyline:
 // in bounds, not backtracking to prev, not in occupied, and not on the current path.
-func neighborPoints(tail, prev point, w, h int, occupied []bool, pathSet map[point]struct{}) []point {
-	var out []point
+func neighborPoints(tail, prev Point, w, h int, occupied []bool, pathSet map[Point]struct{}) []Point {
+	var out []Point
 	for _, d := range []Direction{North, East, South, West} {
 		dx, dy := Delta(d)
-		nx, ny := tail.x+dx, tail.y+dy
+		nx, ny := tail.X+dx, tail.Y+dy
 		if nx < 0 || nx >= w || ny < 0 || ny >= h {
 			continue
 		}
-		np := point{nx, ny}
+		np := Point{nx, ny}
 		if np == prev {
 			continue
 		}
@@ -82,14 +57,14 @@ func neighborPoints(tail, prev point, w, h int, occupied []bool, pathSet map[poi
 
 // pickBiasedTailStep chooses the next cell when extending a polyline tail. When both a straight
 // continuation and a turn are legal, straightChance10 out of 10 rolls pick straight.
-func pickBiasedTailStep(prev, tail point, cands []point, rng *rand.Rand, straightChance10 int) point {
+func pickBiasedTailStep(prev, tail Point, cands []Point, rng *rand.Rand, straightChance10 int) Point {
 	if len(cands) == 1 {
 		return cands[0]
 	}
-	incoming := dirFromTo(prev.x, prev.y, tail.x, tail.y)
-	var straight, turn []point
+	incoming := directionFromTo(prev.X, prev.Y, tail.X, tail.Y)
+	var straight, turn []Point
 	for _, c := range cands {
-		out := dirFromTo(tail.x, tail.y, c.x, c.y)
+		out := directionFromTo(tail.X, tail.Y, c.X, c.Y)
 		if out == incoming {
 			straight = append(straight, c)
 		} else {
@@ -103,38 +78,6 @@ func pickBiasedTailStep(prev, tail point, cands []point, rng *rand.Rand, straigh
 		return turn[rng.IntN(len(turn))]
 	}
 	return cands[rng.IntN(len(cands))]
-}
-
-// oppositeDirGen returns the opposite cardinal direction (same idea as oppositeDir for graph wiring).
-func oppositeDirGen(d Direction) Direction {
-	switch d {
-	case North:
-		return South
-	case South:
-		return North
-	case East:
-		return West
-	case West:
-		return East
-	default:
-		return North
-	}
-}
-
-// dirFromTo returns the direction from (fromx,fromy) to an orthogonally adjacent (tox,toy).
-func dirFromTo(fromx, fromy, tox, toy int) Direction {
-	switch {
-	case tox == fromx && toy == fromy-1:
-		return North
-	case tox == fromx && toy == fromy+1:
-		return South
-	case tox == fromx+1 && toy == fromy:
-		return East
-	case tox == fromx-1 && toy == fromy:
-		return West
-	default:
-		return North
-	}
 }
 
 // headRuneForFire returns the Unicode head rune that fires in the given direction.
@@ -154,27 +97,27 @@ func headRuneForFire(fire Direction) rune {
 }
 
 // paintPath writes one polyline into grid: head at path[0], tail at path[len-1], using wire corners.
-func paintPath(grid []rune, w int, path []point) error {
+func paintPath(grid []rune, w int, path []Point) error {
 	if len(path) < 2 {
 		return errors.New("path too short")
 	}
-	hx, hy := path[0].x, path[0].y
+	hx, hy := path[0].X, path[0].Y
 	i0 := hy*w + hx
 	if grid[i0] != 0 {
 		return errors.New("cell occupied")
 	}
-	dBody := dirFromTo(hx, hy, path[1].x, path[1].y)
-	grid[i0] = headRuneForFire(oppositeDirGen(dBody))
+	dBody := directionFromTo(hx, hy, path[1].X, path[1].Y)
+	grid[i0] = headRuneForFire(oppositeDir(dBody))
 
 	for i := 1; i < len(path); i++ {
-		px, py := path[i].x, path[i].y
+		px, py := path[i].X, path[i].Y
 		idx := py*w + px
 		if grid[idx] != 0 {
 			return errors.New("cell occupied")
 		}
-		dPrev := dirFromTo(px, py, path[i-1].x, path[i-1].y)
+		dPrev := directionFromTo(px, py, path[i-1].X, path[i-1].Y)
 		if i < len(path)-1 {
-			dNext := dirFromTo(px, py, path[i+1].x, path[i+1].y)
+			dNext := directionFromTo(px, py, path[i+1].X, path[i+1].Y)
 			grid[idx] = wireRuneTwo(dPrev, dNext)
 		} else {
 			grid[idx] = wireRuneOne(dPrev)
@@ -197,7 +140,7 @@ func wireRuneOne(d Direction) rune {
 
 // wireRuneTwo returns the corner or straight wire for an internal cell with neighbors along a and b.
 func wireRuneTwo(a, b Direction) rune {
-	if a == oppositeDirGen(b) {
+	if a == oppositeDir(b) {
 		if a == North || a == South {
 			return '│'
 		}

@@ -10,6 +10,11 @@ const (
 	West
 )
 
+// Point is a logical board coordinate (row-major: x is column, y is row).
+type Point struct {
+	X, Y int
+}
+
 // Cell holds a display rune: 0 = empty, otherwise wire (─│┌┐└┘) or head (^v<> / ▲▼◀▶).
 type Cell struct {
 	R rune

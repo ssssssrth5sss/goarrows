@@ -178,12 +178,12 @@ func TestFireTravelCells_AllDirections(t *testing.T) {
 		w, h int
 		hx, hy int
 		rune rune
-		want []struct{ X, Y int }
+		want []game.Point
 	}{
-		{"east", 6, 3, 2, 1, '>', []struct{ X, Y int }{{3, 1}, {4, 1}, {5, 1}}},
-		{"west", 6, 3, 3, 1, '<', []struct{ X, Y int }{{2, 1}, {1, 1}, {0, 1}}},
-		{"north", 4, 6, 2, 3, '^', []struct{ X, Y int }{{2, 2}, {2, 1}, {2, 0}}},
-		{"south", 4, 6, 1, 2, 'v', []struct{ X, Y int }{{1, 3}, {1, 4}, {1, 5}}},
+		{"east", 6, 3, 2, 1, '>', []game.Point{{X: 3, Y: 1}, {X: 4, Y: 1}, {X: 5, Y: 1}}},
+		{"west", 6, 3, 3, 1, '<', []game.Point{{X: 2, Y: 1}, {X: 1, Y: 1}, {X: 0, Y: 1}}},
+		{"north", 4, 6, 2, 3, '^', []game.Point{{X: 2, Y: 2}, {X: 2, Y: 1}, {X: 2, Y: 0}}},
+		{"south", 4, 6, 1, 2, 'v', []game.Point{{X: 1, Y: 3}, {X: 1, Y: 4}, {X: 1, Y: 5}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -293,7 +293,7 @@ func assertFrameCells(t *testing.T, got, want []ui.OverlayCell) {
 }
 
 // assertPoints fails the test if coordinate slices differ element-wise.
-func assertPoints(t *testing.T, got, want []struct{ X, Y int }) {
+func assertPoints(t *testing.T, got, want []game.Point) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("point len got %d want %d", len(got), len(want))

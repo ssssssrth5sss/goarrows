@@ -17,13 +17,14 @@ func TestOverlayHasHorizontalEdge_UShapeLegsNotBridged(t *testing.T) {
 		{X: 2, Y: 1, R: '│'},
 		{X: 2, Y: 0, R: '│'},
 	}
-	if overlayHasHorizontalEdge(cells, 1, 0) {
+	pts := overlayCellPoints(cells)
+	if hasEastEdge(pts, 1, 0) {
 		t.Fatal("legs at row 0 must not be bridged")
 	}
-	if overlayHasHorizontalEdge(cells, 1, 1) {
+	if hasEastEdge(pts, 1, 1) {
 		t.Fatal("legs at row 1 must not be bridged")
 	}
-	if !overlayHasHorizontalEdge(cells, 1, 2) {
+	if !hasEastEdge(pts, 1, 2) {
 		t.Fatal("the bottom └┘ edge must be bridged")
 	}
 }
@@ -37,10 +38,11 @@ func TestOverlayHasHorizontalEdge_OffBoardNoNeighborRowBridge(t *testing.T) {
 		{X: 3, Y: 0, R: '─'},
 		{X: 2, Y: 0, R: '─'},
 	}
-	if overlayHasHorizontalEdge(cells, 0, 1) {
+	pts := overlayCellPoints(cells)
+	if hasEastEdge(pts, 0, 1) {
 		t.Fatal("off-board cells must not produce a bridge in the neighbor row")
 	}
-	if !overlayHasHorizontalEdge(cells, 2, 0) {
+	if !hasEastEdge(pts, 2, 0) {
 		t.Fatal("the on-board horizontal segment must bridge")
 	}
 }

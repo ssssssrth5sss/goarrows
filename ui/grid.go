@@ -13,7 +13,7 @@ type OverlayCell struct {
 
 // FireAnimOverlay draws a frame of fire animation.
 type FireAnimOverlay struct {
-	HidePath []struct{ X, Y int }
+	HidePath []game.Point
 	Cells    []OverlayCell
 }
 
@@ -34,6 +34,7 @@ func DrawGrid(s tcell.Screen, ox, oy int, b game.Board, cursorX, cursorY int, ba
 	hidePath := fireAnimHidePath(fireAnim)
 	hideSet := pathCellSet(b.W, hidePath)
 	animCells := fireAnimCells(fireAnim)
+	animPath := overlayCellPoints(animCells)
 
 	for y := 0; y < b.H; y++ {
 		for x := 0; x < b.W; x++ {
@@ -56,10 +57,10 @@ func DrawGrid(s tcell.Screen, ox, oy int, b game.Board, cursorX, cursorY int, ba
 			if game.HorizontalLink(b, x, y) {
 				ch = '─'
 			}
-			if pathHasHorizontalEdge(hidePath, x, y) {
+			if hasEastEdge(hidePath, x, y) {
 				ch = ' '
 			}
-			if overlayHasHorizontalEdge(animCells, x, y) {
+			if hasEastEdge(animPath, x, y) {
 				ch = '─'
 			}
 			s.SetContent(ox+2*x+1, oy+y, ch, nil, st)
@@ -78,7 +79,7 @@ func DrawGrid(s tcell.Screen, ox, oy int, b game.Board, cursorX, cursorY int, ba
 }
 
 // fireAnimHidePath returns cells masked to spaces during the fire animation (nil-safe).
-func fireAnimHidePath(f *FireAnimOverlay) []struct{ X, Y int } {
+func fireAnimHidePath(f *FireAnimOverlay) []game.Point {
 	if f == nil {
 		return nil
 	}
@@ -94,7 +95,7 @@ func fireAnimCells(f *FireAnimOverlay) []OverlayCell {
 }
 
 // pathCellSet maps linear cell indices (y*w+x) for fast membership on hidePath.
-func pathCellSet(w int, path []struct{ X, Y int }) map[int]struct{} {
+func pathCellSet(w int, path []game.Point) map[int]struct{} {
 	m := make(map[int]struct{}, len(path))
 	for _, p := range path {
 		m[p.Y*w+p.X] = struct{}{}
@@ -102,24 +103,21 @@ func pathCellSet(w int, path []struct{ X, Y int }) map[int]struct{} {
 	return m
 }
 
-// pathHasHorizontalEdge reports whether the polyline includes the east edge between (x,y) and (x+1,y).
-func pathHasHorizontalEdge(path []struct{ X, Y int }, x, y int) bool {
-	for i := 0; i+1 < len(path); i++ {
-		a, b := path[i], path[i+1]
-		if (a.X == x && a.Y == y && b.X == x+1 && b.Y == y) ||
-			(b.X == x && b.Y == y && a.X == x+1 && a.Y == y) {
-			return true
-		}
+// overlayCellPoints extracts the logical coordinates of overlay cells in order.
+func overlayCellPoints(cells []OverlayCell) []game.Point {
+	pts := make([]game.Point, len(cells))
+	for i, c := range cells {
+		pts[i] = game.Point{X: c.X, Y: c.Y}
 	}
-	return false
+	return pts
 }
 
-// overlayHasHorizontalEdge reports whether consecutive overlay cells form the east edge
-// between (x,y) and (x+1,y). Only adjacent polyline cells bridge, so two separate legs that
-// merely share a row (e.g. the sides of a U) are never joined.
-func overlayHasHorizontalEdge(cells []OverlayCell, x, y int) bool {
-	for i := 0; i+1 < len(cells); i++ {
-		a, b := cells[i], cells[i+1]
+// hasEastEdge reports whether two consecutive points form the east edge between (x,y) and
+// (x+1,y). Only adjacent polyline points bridge, so two separate legs that merely share a row
+// (e.g. the sides of a U) are never joined.
+func hasEastEdge(pts []game.Point, x, y int) bool {
+	for i := 0; i+1 < len(pts); i++ {
+		a, b := pts[i], pts[i+1]
 		if (a.X == x && a.Y == y && b.X == x+1 && b.Y == y) ||
 			(b.X == x && b.Y == y && a.X == x+1 && a.Y == y) {
 			return true

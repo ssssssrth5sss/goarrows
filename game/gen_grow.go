@@ -46,7 +46,7 @@ func generateFullBoardGrow(w, h int, rng *rand.Rand) (Board, error) {
 		return Board{}, fmt.Errorf("gen: need at least 2 cells (got %d×%d)", w, h)
 	}
 
-	n := minInt(w, h)
+	n := min(w, h)
 	nHeads := clampArrowCount(targetArrowCountForSide(n), wh)
 	maxTries := 8000 + 100*wh
 	if maxTries > 60000 {
@@ -100,7 +100,7 @@ func growPlayfulEnough(b Board) bool {
 }
 
 // tryGrowPartition builds initial seed paths then repeatedly extends tails until no move remains.
-func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
+func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 	paths, ok := seedGrowPaths(w, h, nHeads, rng)
 	if !ok {
 		return nil, false
@@ -109,7 +109,7 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
 	occupied := make([]bool, w*h)
 	for _, path := range paths {
 		for _, p := range path {
-			occupied[p.y*w+p.x] = true
+			occupied[p.Y*w+p.X] = true
 		}
 	}
 
@@ -123,16 +123,16 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
 			}
 			tail := path[len(path)-1]
 			prev := path[len(path)-2]
-			pathSet := make(map[point]struct{}, len(path)+1)
+			pathSet := make(map[Point]struct{}, len(path)+1)
 			for _, p := range path {
 				pathSet[p] = struct{}{}
 			}
 			cands := neighborPoints(tail, prev, w, h, occupied, pathSet)
-			hx, hy := path[0].x, path[0].y
-			fire := oppositeDirGen(dirFromTo(hx, hy, path[1].x, path[1].y))
+			hx, hy := path[0].X, path[0].Y
+			fire := oppositeDir(directionFromTo(hx, hy, path[1].X, path[1].Y))
 			write := 0
 			for _, c := range cands {
-				if !cellOnOpenRayFromHead(hx, hy, fire, c.x, c.y, w, h) {
+				if !cellOnOpenRayFromHead(hx, hy, fire, c.X, c.Y, w, h) {
 					cands[write] = c
 					write++
 				}
@@ -144,7 +144,7 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
 			next := pickBiasedTailStep(prev, tail, cands, rng, growStraightChance10)
 			path = append(path, next)
 			paths[pi] = path
-			occupied[next.y*w+next.x] = true
+			occupied[next.Y*w+next.X] = true
 			extended = true
 		}
 		if !extended {
@@ -156,11 +156,11 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
 }
 
 // seedGrowPaths places nHeads disjoint two-cell paths (head + one body) with random orientation.
-func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
+func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 	wh := w * h
 	occupied := make([]bool, wh)
-	var heads []point
-	var paths [][]point
+	var heads []Point
+	var paths [][]Point
 
 	maxSeedAttempts := 400 * nHeads
 	if maxSeedAttempts < 800 {
@@ -187,10 +187,10 @@ func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
 			if occupied[by*w+bx] {
 				continue
 			}
-			path := []point{{hx, hy}, {bx, by}}
+			path := []Point{{hx, hy}, {bx, by}}
 			occupied[hy*w+hx] = true
 			occupied[by*w+bx] = true
-			heads = append(heads, point{hx, hy})
+			heads = append(heads, Point{hx, hy})
 			paths = append(paths, path)
 			placed = true
 			break
@@ -203,11 +203,11 @@ func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]point, bool) {
 }
 
 // rayHitsPreviousHead reports whether the open ray from head (hx,hy) in fire direction passes any prior head.
-func rayHitsPreviousHead(hx, hy int, fire Direction, heads []point, w, h int) bool {
+func rayHitsPreviousHead(hx, hy int, fire Direction, heads []Point, w, h int) bool {
 	dx, dy := Delta(fire)
 	for cx, cy := hx+dx, hy+dy; cx >= 0 && cx < w && cy >= 0 && cy < h; cx, cy = cx+dx, cy+dy {
 		for _, hp := range heads {
-			if hp.x == cx && hp.y == cy {
+			if hp.X == cx && hp.Y == cy {
 				return true
 			}
 		}
@@ -216,7 +216,7 @@ func rayHitsPreviousHead(hx, hy int, fire Direction, heads []point, w, h int) bo
 }
 
 // boardFromPaths rasterizes polylines into a Board via paintPath (each path must be disjoint).
-func boardFromPaths(paths [][]point, w, h int) (Board, error) {
+func boardFromPaths(paths [][]Point, w, h int) (Board, error) {
 	grid := make([]rune, w*h)
 	for _, path := range paths {
 		if err := paintPath(grid, w, path); err != nil {

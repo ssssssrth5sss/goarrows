@@ -23,7 +23,7 @@ type fireUIResult struct {
 
 type animState struct {
 	active   bool
-	hidePath []struct{ X, Y int } // original fired path (masked during animation)
+	hidePath []game.Point // original fired path (masked during animation)
 	frames   []ui.FireAnimOverlay // precomputed snake frames
 	step     int
 	nextStep time.Time
@@ -175,6 +175,21 @@ func main() {
 		}
 		s.Show()
 	}
+	clearTransient := func() {
+		status, modal = "", nil
+		anim.active = false
+	}
+	gotoLevel := func(delta int) {
+		idx = (idx + delta + pack.Len()) % pack.Len()
+		g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
+		clearTransient()
+		clampCursor(g, &cx, &cy)
+	}
+	restart := func() {
+		resetLevel(pack, &g, idx, *startLives)
+		clearTransient()
+		clampCursor(g, &cx, &cy)
+	}
 	tryStartOrApplyFire := func(x, y int) {
 		started := tryStartFireAnimation(g, x, y, &anim, animStep)
 		if !started {
@@ -236,33 +251,18 @@ func main() {
 					quit = true
 				case tcell.KeyEnter:
 					if g.Won() {
-						idx = (idx + 1) % pack.Len()
-						g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
-						status, modal = "", nil
-						anim.active = false
-						clampCursor(g, &cx, &cy)
+						gotoLevel(1)
 					}
 				case tcell.KeyRune:
 					switch ev.Rune() {
 					case 'q', 'Q':
 						quit = true
 					case 'r', 'R':
-						resetLevel(pack, &g, idx, *startLives)
-						status, modal = "", nil
-						anim.active = false
-						clampCursor(g, &cx, &cy)
+						restart()
 					case 'n', 'N':
-						idx = (idx + 1) % pack.Len()
-						g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
-						status, modal = "", nil
-						anim.active = false
-						clampCursor(g, &cx, &cy)
+						gotoLevel(1)
 					case 'p', 'P':
-						idx = (idx - 1 + pack.Len()) % pack.Len()
-						g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
-						status, modal = "", nil
-						anim.active = false
-						clampCursor(g, &cx, &cy)
+						gotoLevel(-1)
 					}
 				}
 				redraw()
@@ -297,21 +297,11 @@ func main() {
 				case ' ', 'f', 'F':
 					interruptAndFire(cx, cy)
 				case 'r', 'R':
-					resetLevel(pack, &g, idx, *startLives)
-					status, modal = "", nil
-					anim.active = false
+					restart()
 				case 'n', 'N':
-					idx = (idx + 1) % pack.Len()
-					g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
-					status, modal = "", nil
-					anim.active = false
-					clampCursor(g, &cx, &cy)
+					gotoLevel(1)
 				case 'p', 'P':
-					idx = (idx - 1 + pack.Len()) % pack.Len()
-					g = newGameWithGenOverlay(pack, idx, *startLives, &generatingN, redraw)
-					status, modal = "", nil
-					anim.active = false
-					clampCursor(g, &cx, &cy)
+					gotoLevel(-1)
 				case '?':
 					showHelp = true
 				}
@@ -466,7 +456,7 @@ func tryStartFireAnimation(g *game.Game, cx, cy int, anim *animState, stepDur ti
 }
 
 // buildPointerFrames builds per-step overlays: head slides along ray then past the edge while the tail follows.
-func buildPointerFrames(b game.Board, path, ray []struct{ X, Y int }, headRune rune) ([]ui.FireAnimOverlay, bool) {
+func buildPointerFrames(b game.Board, path, ray []game.Point, headRune rune) ([]ui.FireAnimOverlay, bool) {
 	if len(path) == 0 {
 		return nil, false
 	}
@@ -526,16 +516,16 @@ func straightBodyRune(d game.Direction) rune {
 }
 
 // fireTravelCells lists empty cells from the head cell along the open ray to the board edge (exclusive of head).
-func fireTravelCells(b game.Board, cx, cy int) []struct{ X, Y int } {
+func fireTravelCells(b game.Board, cx, cy int) []game.Point {
 	c := b.At(cx, cy)
 	fire, ok := game.HeadFireDir(c.R)
 	if !ok {
 		return nil
 	}
 	dx, dy := game.Delta(fire)
-	var out []struct{ X, Y int }
+	var out []game.Point
 	for x, y := cx+dx, cy+dy; b.InBounds(x, y); x, y = x+dx, y+dy {
-		out = append(out, struct{ X, Y int }{X: x, Y: y})
+		out = append(out, game.Point{X: x, Y: y})
 	}
 	return out
 }

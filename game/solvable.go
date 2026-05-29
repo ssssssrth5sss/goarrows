@@ -37,12 +37,11 @@ func verifySolvableRec(g *Game) bool {
 	if g.Won() {
 		return true
 	}
-	type xy struct{ x, y int }
-	var heads []xy
+	var heads []Point
 	for y := 0; y < g.Board.H; y++ {
 		for x := 0; x < g.Board.W; x++ {
 			if g.Board.At(x, y).IsHead() && RayEscapes(g.Board, x, y) {
-				heads = append(heads, xy{x, y})
+				heads = append(heads, Point{x, y})
 			}
 		}
 	}
@@ -51,7 +50,7 @@ func verifySolvableRec(g *Game) bool {
 	}
 	for _, h := range heads {
 		gc := NewGame(g.Board, g.Lives, g.LevelName)
-		TryFire(gc, h.x, h.y)
+		TryFire(gc, h.X, h.Y)
 		if verifySolvableRec(gc) {
 			return true
 		}

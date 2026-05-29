@@ -77,7 +77,7 @@ func TestGenerateFullBoardValidateAndPlayable(t *testing.T) {
 		}
 		for seed := uint64(1); seed <= seeds; seed++ {
 			rng := rand.New(rand.NewPCG(seed, seed*2+1))
-			b, err := GenerateFullBoard(n, n, rng)
+			b, err := GenerateBoard(n, n, rng)
 			if err != nil {
 				t.Fatalf("n=%d seed=%d: %v", n, seed, err)
 			}
@@ -100,7 +100,7 @@ func TestGenerateFullBoardLargeSmoke(t *testing.T) {
 	sizes := []int{8}
 	for _, n := range sizes {
 		rng := rand.New(rand.NewPCG(42, uint64(n)*99991+17))
-		b, err := GenerateFullBoard(n, n, rng)
+		b, err := GenerateBoard(n, n, rng)
 		if err != nil {
 			t.Fatalf("n=%d: %v", n, err)
 		}
@@ -118,11 +118,11 @@ func TestGenerateFullBoardReproducible(t *testing.T) {
 	const seed0, seed1 uint64 = 0x1234abcd, 0xf00dcafe
 	rng1 := rand.New(rand.NewPCG(seed0, seed1))
 	rng2 := rand.New(rand.NewPCG(seed0, seed1))
-	b1, err := GenerateFullBoard(8, 8, rng1)
+	b1, err := GenerateBoard(8, 8, rng1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b2, err := GenerateFullBoard(8, 8, rng2)
+	b2, err := GenerateBoard(8, 8, rng2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestGenerateFullBoardReproducible(t *testing.T) {
 // TestGenerateFullBoardPlayfulnessSmoke sanity-checks initial RayEscapes head count on one board.
 func TestGenerateFullBoardPlayfulnessSmoke(t *testing.T) {
 	rng := rand.New(rand.NewPCG(2024, 303))
-	b, err := GenerateFullBoard(8, 8, rng)
+	b, err := GenerateBoard(8, 8, rng)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestGenerateFullBoardVariedHeadCount(t *testing.T) {
 	}
 	for seed := uint64(1); seed <= seeds; seed++ {
 		rng := rand.New(rand.NewPCG(seed, 777))
-		b, err := GenerateFullBoard(n, n, rng)
+		b, err := GenerateBoard(n, n, rng)
 		if err != nil {
 			t.Fatalf("seed %d: %v", seed, err)
 		}
@@ -180,7 +180,7 @@ func TestGenerateFullBoardMultipleComponents(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rng := rand.New(rand.NewPCG(uint64(tc.w*97+tc.h), uint64(tc.w*tc.h)+13))
-		b, err := GenerateFullBoard(tc.w, tc.h, rng)
+		b, err := GenerateBoard(tc.w, tc.h, rng)
 		if err != nil {
 			t.Fatalf("%d×%d: %v", tc.w, tc.h, err)
 		}
@@ -194,7 +194,7 @@ func TestGenerateFullBoardMultipleComponents(t *testing.T) {
 // TestGenerateFullBoardGreedyClearsTiny asserts greedy solvability on a tiny generated board.
 func TestGenerateFullBoardGreedyClearsTiny(t *testing.T) {
 	rng := rand.New(rand.NewPCG(7, 11))
-	b, err := GenerateFullBoard(3, 3, rng)
+	b, err := GenerateBoard(3, 3, rng)
 	if err != nil {
 		t.Fatal(err)
 	}
