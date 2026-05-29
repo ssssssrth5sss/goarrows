@@ -105,13 +105,56 @@ func TestBuildPointerFrames_BentPath(t *testing.T) {
 		{X: 4, Y: 1, R: '>'},
 		{X: 3, Y: 1, R: '─'},
 		{X: 2, Y: 1, R: '┌'},
-		{X: 2, Y: 2, R: '┘'},
+		{X: 2, Y: 2, R: '│'},
 	})
 	assertFrameCells(t, frames[1].Cells, []ui.OverlayCell{
 		{X: 5, Y: 1, R: '>'},
 		{X: 4, Y: 1, R: '─'},
 		{X: 3, Y: 1, R: '─'},
-		{X: 2, Y: 1, R: '┌'},
+		{X: 2, Y: 1, R: '─'},
+	})
+}
+
+// TestBuildPointerFrames_TailStraightensPastBend reproduces the tail-render bug: as the
+// snake's tail recedes onto a former corner cell, the glyph must straighten to a stub
+// matching its single remaining neighbor instead of keeping the stale corner rune.
+func TestBuildPointerFrames_TailStraightensPastBend(t *testing.T) {
+	b := game.NewBoard(7, 5)
+	b.Set(4, 2, game.Cell{R: '>'})
+	b.Set(3, 2, game.Cell{R: '─'})
+	b.Set(2, 2, game.Cell{R: '┌'})
+	b.Set(2, 3, game.Cell{R: '│'})
+	b.Set(2, 4, game.Cell{R: '│'})
+
+	path, err := game.PathFromHead(b, 4, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ray := fireTravelCells(b, 4, 2)
+	frames, ok := buildPointerFrames(b, path, ray, '>')
+	if !ok {
+		t.Fatal("buildPointerFrames returned !ok")
+	}
+	if len(frames) < 2 {
+		t.Fatalf("frame count got %d want >= 2", len(frames))
+	}
+
+	// Frame 0: the corner at (2,2) is still internal (joins east + south), so it stays ┌.
+	assertFrameCells(t, frames[0].Cells, []ui.OverlayCell{
+		{X: 5, Y: 2, R: '>'},
+		{X: 4, Y: 2, R: '─'},
+		{X: 3, Y: 2, R: '─'},
+		{X: 2, Y: 2, R: '┌'},
+		{X: 2, Y: 3, R: '│'},
+	})
+	// Frame 1: the tail recedes onto (2,2); it now connects only east, so it must be a
+	// straight stub ─, not the stale corner ┌.
+	assertFrameCells(t, frames[1].Cells, []ui.OverlayCell{
+		{X: 6, Y: 2, R: '>'},
+		{X: 5, Y: 2, R: '─'},
+		{X: 4, Y: 2, R: '─'},
+		{X: 3, Y: 2, R: '─'},
+		{X: 2, Y: 2, R: '─'},
 	})
 }
 

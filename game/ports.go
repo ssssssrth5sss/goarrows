@@ -36,6 +36,36 @@ func NominalPorts(r rune) uint8 {
 	}
 }
 
+// WireRuneForPorts returns the wire glyph for a port mask. Degree-1 (tail)
+// masks map to the straight line containing that port (N/S -> │, E/W -> ─).
+func WireRuneForPorts(mask uint8) rune {
+	switch mask {
+	case PortE | PortW:
+		return '─'
+	case PortN | PortS:
+		return '│'
+	case PortS | PortE:
+		return '┌'
+	case PortS | PortW:
+		return '┐'
+	case PortN | PortE:
+		return '└'
+	case PortN | PortW:
+		return '┘'
+	case PortN, PortS:
+		return '│'
+	case PortE, PortW:
+		return '─'
+	default:
+		return 0
+	}
+}
+
+// PortToward returns the port bit on (fx,fy) facing orthogonally adjacent (tx,ty).
+func PortToward(fx, fy, tx, ty int) uint8 {
+	return dirToPort(directionFromTo(fx, fy, tx, ty))
+}
+
 // linkMask returns ports used for adjacency: wires use glyph geometry; heads
 // connect only toward the body (opposite of fire) so adjacent foreign wires
 // do not spuriously link across component boundaries.
