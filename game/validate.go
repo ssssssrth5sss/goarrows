@@ -8,12 +8,8 @@ import (
 func ValidateBoard(b Board) error {
 	for y := 0; y < b.H; y++ {
 		for x := 0; x < b.W; x++ {
-			c := b.At(x, y)
-			if c.IsEmpty() {
+			if b.At(x, y).IsEmpty() {
 				return fmt.Errorf("cell (%d,%d): empty cell not allowed (full coverage)", x, y)
-			}
-			if !c.IsHead() && NominalPorts(c.R) == 0 {
-				return fmt.Errorf("cell (%d,%d): unknown rune %q", x, y, c.R)
 			}
 		}
 	}
@@ -24,34 +20,27 @@ func ValidateBoard(b Board) error {
 // for boards that may contain empty cells (background). Empty cells are ignored.
 // Full-coverage levels should use ValidateBoard instead.
 func ValidatePartialBoard(b Board) error {
-	hasAny := false
-	for y := 0; y < b.H; y++ {
-		for x := 0; x < b.W; x++ {
-			c := b.At(x, y)
-			if c.IsEmpty() {
-				continue
-			}
-			hasAny = true
-			if !c.IsHead() && NominalPorts(c.R) == 0 {
-				return fmt.Errorf("cell (%d,%d): unknown rune %q", x, y, c.R)
-			}
-		}
-	}
-	if !hasAny {
-		return fmt.Errorf("partial board: no non-empty cells")
-	}
 	return checkPortsAndComponents(b, true)
 }
 
 // checkPortsAndComponents verifies port degrees (heads link once; wires have degree 1 or 2) and
 // that every connected component holds exactly one head. When skipEmpty is true, empty background
-// cells are ignored; otherwise the caller has already guaranteed full coverage.
+// cells are ignored; otherwise the caller has already guaranteed full coverage. A single pass
+// validates runes, port degrees, and records non-empty cells before the component flood-fill.
 func checkPortsAndComponents(b Board, skipEmpty bool) error {
+	hasAny := false
 	for y := 0; y < b.H; y++ {
 		for x := 0; x < b.W; x++ {
 			c := b.At(x, y)
-			if skipEmpty && c.IsEmpty() {
+			if c.IsEmpty() {
+				if !skipEmpty {
+					return fmt.Errorf("cell (%d,%d): empty cell not allowed (full coverage)", x, y)
+				}
 				continue
+			}
+			hasAny = true
+			if !c.IsHead() && NominalPorts(c.R) == 0 {
+				return fmt.Errorf("cell (%d,%d): unknown rune %q", x, y, c.R)
 			}
 			bits := popcount(EffectivePorts(b, x, y))
 			if c.IsHead() {
@@ -64,6 +53,9 @@ func checkPortsAndComponents(b Board, skipEmpty bool) error {
 				return fmt.Errorf("cell (%d,%d): wire must have degree 1 (tail) or 2 (internal), got %d", x, y, bits)
 			}
 		}
+	}
+	if skipEmpty && !hasAny {
+		return fmt.Errorf("partial board: no non-empty cells")
 	}
 
 	seen := make([]bool, b.W*b.H)

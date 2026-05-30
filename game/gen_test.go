@@ -285,3 +285,54 @@ func TestGenGrowConstant(t *testing.T) {
 		t.Fatalf("GenGrow = %q, want %q", GenGrow, "grow")
 	}
 }
+
+// TestVerifySolvableFastMatchesGreedy locks the equivalence between the row-major
+// greedy verifier and the work-list verifier across a sweep of generated boards.
+// They must accept exactly the same set of boards (monotonicity: firing only
+// removes cells, so once a ray is clear it stays clear).
+func TestVerifySolvableFastMatchesGreedy(t *testing.T) {
+	sizes := []int{3, 4, 5, 6, 7}
+	for _, n := range sizes {
+		for seed := uint64(1); seed <= 20; seed++ {
+			rng := rand.New(rand.NewPCG(seed, seed*31+7))
+			b, err := GenerateBoard(n, n, rng)
+			if err != nil {
+				t.Fatalf("n=%d seed=%d gen: %v", n, seed, err)
+			}
+			var heads []Point
+			for y := 0; y < b.H; y++ {
+				for x := 0; x < b.W; x++ {
+					if b.At(x, y).IsHead() {
+						heads = append(heads, Point{x, y})
+					}
+				}
+			}
+			fast := VerifySolvableFast(b, heads)
+			slow := VerifyGreedyFirstClearsBoard(b)
+			if fast != slow {
+				t.Fatalf("n=%d seed=%d: fast=%v slow=%v", n, seed, fast, slow)
+			}
+		}
+	}
+}
+
+// BenchmarkGenerateBoard24x24 covers level 22 (24×24, ~57 heads) — the size where
+// generation slows in the rejection-sampling pipeline. Used to track speedups.
+func BenchmarkGenerateBoard24x24(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		rng := rand.New(rand.NewPCG(uint64(i+1), 0x9E3779B97F4A7C15))
+		if _, err := GenerateBoard(24, 24, rng); err != nil {
+			b.Fatalf("iter %d: %v", i, err)
+		}
+	}
+}
+
+// BenchmarkGenerateBoard12x12 measures a mid-size board for sensitivity checks.
+func BenchmarkGenerateBoard12x12(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		rng := rand.New(rand.NewPCG(uint64(i+1), 0xBF58476D1CE4E5B9))
+		if _, err := GenerateBoard(12, 12, rng); err != nil {
+			b.Fatalf("iter %d: %v", i, err)
+		}
+	}
+}

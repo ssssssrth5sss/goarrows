@@ -5,20 +5,43 @@ import (
 )
 
 // growStraightChance10 is P(straight)/10 when both straight and turn tail steps exist
-// during grow algorithm extensions in tryGrowPartition.
+// during grow algorithm extensions in tryGrowPartitionBuf.
 const growStraightChance10 = 9
 
-// tryGrowPartition builds initial seed paths then repeatedly extends tails until no move remains.
-func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
-	paths, ok := seedGrowPaths(w, h, nHeads, rng)
+// tryGrowPartitionBuf builds initial seed paths then repeatedly extends tails until no
+// move remains, reusing scratch buffers across attempts. It maintains sc.glyphAt
+// incrementally so the caller can build the final Board directly without a second
+// rasterization pass through boardFromPathsBuf.
+func tryGrowPartitionBuf(w, h, nHeads int, rng *rand.Rand, sc *genScratch) ([][]Point, bool) {
+	paths, ok := seedGrowPathsBuf(w, h, nHeads, rng, sc)
 	if !ok {
 		return nil, false
 	}
 
-	occupied := make([]bool, w*h)
+	wh := w * h
+	occupied := sc.occupied[:wh]
+	glyphAt := sc.glyphAt[:wh]
+	clear(occupied)
+	// seedGrowPathsBuf already populated glyphAt for the seed cells; mirror that
+	// into the extension-phase occupied bitmap.
 	for _, path := range paths {
 		for _, p := range path {
 			occupied[p.Y*w+p.X] = true
+		}
+	}
+
+	// fireMasks[pi][y*w+x] is true iff (x,y) lies on path pi's open firing ray.
+	// Head and body direction are fixed at seed time, so the ray cells never change.
+	maskBuf := sc.fireMaskBuf[:len(paths)*wh]
+	clear(maskBuf)
+	fireMasks := make([][]bool, len(paths))
+	for pi, path := range paths {
+		fireMasks[pi] = maskBuf[pi*wh : (pi+1)*wh]
+		hx, hy := path[0].X, path[0].Y
+		fire := oppositeDir(directionFromTo(hx, hy, path[1].X, path[1].Y))
+		dx, dy := Delta(fire)
+		for cx, cy := hx+dx, hy+dy; cx >= 0 && cx < w && cy >= 0 && cy < h; cx, cy = cx+dx, cy+dy {
+			fireMasks[pi][cy*w+cx] = true
 		}
 	}
 
@@ -32,16 +55,11 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 			}
 			tail := path[len(path)-1]
 			prev := path[len(path)-2]
-			pathSet := make(map[Point]struct{}, len(path)+1)
-			for _, p := range path {
-				pathSet[p] = struct{}{}
-			}
-			cands := neighborPoints(tail, prev, w, h, occupied, pathSet)
-			hx, hy := path[0].X, path[0].Y
-			fire := oppositeDir(directionFromTo(hx, hy, path[1].X, path[1].Y))
+			cands := neighborPoints(tail, prev, w, h, occupied)
+			fm := fireMasks[pi]
 			write := 0
 			for _, c := range cands {
-				if !cellOnOpenRayFromHead(hx, hy, fire, c.X, c.Y, w, h) {
+				if !fm[c.Y*w+c.X] {
 					cands[write] = c
 					write++
 				}
@@ -51,6 +69,18 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 				continue
 			}
 			next := pickBiasedTailStep(prev, tail, cands, rng, growStraightChance10)
+			// Tail transitions from degree-1 wire to degree-2 internal cell; the new
+			// tail becomes a degree-1 wire. Update glyphAt so the caller can build the
+			// final Board without a second rasterization pass. Note: glyphs are not
+			// checked for accidental cross-path port links here — that filter caused
+			// solver-rejection rates to spike (dense link-free growth tends to produce
+			// unsolvable boards). ValidatePartialBoard runs after grow and rejects the
+			// rare accidental links that do occur.
+			glyphAt[tail.Y*w+tail.X] = wireRuneTwo(
+				directionFromTo(tail.X, tail.Y, prev.X, prev.Y),
+				directionFromTo(tail.X, tail.Y, next.X, next.Y),
+			)
+			glyphAt[next.Y*w+next.X] = wireRuneOne(directionFromTo(next.X, next.Y, tail.X, tail.Y))
 			path = append(path, next)
 			paths[pi] = path
 			occupied[next.Y*w+next.X] = true
@@ -64,11 +94,20 @@ func tryGrowPartition(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 	return paths, true
 }
 
-// seedGrowPaths places nHeads disjoint two-cell paths (head + one body) with random orientation.
-func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
+
+// seedGrowPathsBuf places nHeads disjoint two-cell paths (head + one body) with
+// random orientation, reusing scratch buffers. A head bitmap turns the
+// previously-O(K) "ray hits another head?" check into O(1) per cell. As paths
+// are placed sc.glyphAt is populated so the extension phase and the final Board
+// build can read glyphs directly without re-rasterizing the paths.
+func seedGrowPathsBuf(w, h, nHeads int, rng *rand.Rand, sc *genScratch) ([][]Point, bool) {
 	wh := w * h
-	occupied := make([]bool, wh)
-	var heads []Point
+	occupied := sc.seedOcc[:wh]
+	headBM := sc.seedHeadBM[:wh]
+	glyphAt := sc.glyphAt[:wh]
+	clear(occupied)
+	clear(headBM)
+	clear(glyphAt)
 	var paths [][]Point
 
 	maxSeedAttempts := 400 * nHeads
@@ -85,7 +124,7 @@ func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 				continue
 			}
 			fire := Direction(rng.IntN(4))
-			if rayHitsPreviousHead(hx, hy, fire, heads, w, h) {
+			if rayHitsHeadBitmap(hx, hy, fire, headBM, w, h) {
 				continue
 			}
 			bdx, bdy := Delta(oppositeDir(fire))
@@ -99,7 +138,9 @@ func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 			path := []Point{{hx, hy}, {bx, by}}
 			occupied[hy*w+hx] = true
 			occupied[by*w+bx] = true
-			heads = append(heads, Point{hx, hy})
+			headBM[hy*w+hx] = true
+			glyphAt[hy*w+hx] = headRuneForFire(fire)
+			glyphAt[by*w+bx] = wireRuneOne(directionFromTo(bx, by, hx, hy))
 			paths = append(paths, path)
 			placed = true
 			break
@@ -111,22 +152,22 @@ func seedGrowPaths(w, h, nHeads int, rng *rand.Rand) ([][]Point, bool) {
 	return paths, true
 }
 
-// rayHitsPreviousHead reports whether the open ray from head (hx,hy) in fire direction passes any prior head.
-func rayHitsPreviousHead(hx, hy int, fire Direction, heads []Point, w, h int) bool {
+// rayHitsHeadBitmap reports whether the open ray from (hx,hy) in fire direction
+// crosses a previously placed head. headBM[y*w+x] is true at every head cell.
+func rayHitsHeadBitmap(hx, hy int, fire Direction, headBM []bool, w, h int) bool {
 	dx, dy := Delta(fire)
 	for cx, cy := hx+dx, hy+dy; cx >= 0 && cx < w && cy >= 0 && cy < h; cx, cy = cx+dx, cy+dy {
-		for _, hp := range heads {
-			if hp.X == cx && hp.Y == cy {
-				return true
-			}
+		if headBM[cy*w+cx] {
+			return true
 		}
 	}
 	return false
 }
 
 // neighborPoints returns empty orthogonal steps from tail toward extending the polyline:
-// in bounds, not backtracking to prev, not in occupied, and not on the current path.
-func neighborPoints(tail, prev Point, w, h int, occupied []bool, pathSet map[Point]struct{}) []Point {
+// in bounds, not backtracking to prev, and not in occupied (which already contains
+// every cell of every path, so an explicit path-set check is redundant).
+func neighborPoints(tail, prev Point, w, h int, occupied []bool) []Point {
 	var out []Point
 	for _, d := range []Direction{North, East, South, West} {
 		dx, dy := Delta(d)
@@ -139,9 +180,6 @@ func neighborPoints(tail, prev Point, w, h int, occupied []bool, pathSet map[Poi
 			continue
 		}
 		if occupied[ny*w+nx] {
-			continue
-		}
-		if _, ok := pathSet[np]; ok {
 			continue
 		}
 		out = append(out, np)

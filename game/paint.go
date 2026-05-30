@@ -5,6 +5,8 @@ import (
 )
 
 // boardFromPaths rasterizes polylines into a Board via paintPath (each path must be disjoint).
+// The production generator builds boards directly from sc.glyphAt; this helper is
+// kept for tests and standalone callers that have a [][]Point and want a Board.
 func boardFromPaths(paths [][]Point, w, h int) (Board, error) {
 	grid := make([]rune, w*h)
 	for _, path := range paths {
