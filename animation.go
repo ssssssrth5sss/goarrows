@@ -24,7 +24,6 @@ func tryStartFireAnimation(g *game.Game, cx, cy int, anim *animState, stepDur ti
 	}
 	c := g.Board.At(cx, cy)
 	if c.IsEmpty() || !c.IsHead() || !game.RayEscapes(g.Board, cx, cy) {
-		return false
 	}
 	path, err := game.PathFromHead(g.Board, cx, cy)
 	if err != nil || len(path) == 0 {
