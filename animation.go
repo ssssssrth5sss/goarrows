@@ -34,7 +34,6 @@ func tryStartFireAnimation(g *game.Game, cx, cy int, anim *animState, stepDur ti
 	// slide off, so we do not bail here. BuildFireFrames handles an empty ray.
 	frames, ok := ui.BuildFireFrames(g.Board, path, c.R)
 	if !ok || len(frames) == 0 {
-		return false
 	}
 	anim.active = true
 	anim.hidePath = path
