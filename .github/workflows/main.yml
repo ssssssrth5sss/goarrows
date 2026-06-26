@@ -15,6 +15,6 @@ jobs:
           GOOS=js GOARCH=wasm go build -o ui/arrows.wasm .
       - uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: ui
+          folder: .
           branch: gh-peges
           
